@@ -35,6 +35,9 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
         private const string PSGalleryParameterSet = "PSGalleryParameterSet";
         private const string RepositoriesParameterSet = "RepositoriesParameterSet";
 
+        private static readonly string VaultNameAttribute = "VaultName";
+        private static readonly string SecretAttribute = "Secret";
+
         #endregion
 
         #region Parameters
@@ -80,7 +83,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
         /// <summary>
         /// Specifies a hashtable of repositories and is used to register multiple repositories at once.
         /// </summary>
-        [Parameter(Mandatory = true, ParameterSetName = "RepositoriesParameterSet", ValueFromPipeline = true)]
+        [Parameter(Mandatory = true, ParameterSetName = RepositoriesParameterSet, ValueFromPipeline = true)]
         [ValidateNotNullOrEmpty]
         public Hashtable[] Repositories {get; set;}
 
@@ -101,6 +104,13 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
         [Parameter(ParameterSetName = PSGalleryParameterSet)]
         [ValidateRange(0, 50)]
         public int Priority { get; set; } = defaultPriority;
+
+        /// <summary>
+        /// Specifies a hashtable of Authentication information such as vault and secret names.
+        /// </summary>
+        [Parameter(ParameterSetName = NameParameterSet)]
+        [ValidateNotNullOrEmpty]
+        public Hashtable Authentication {get; set;}
 
         /// <summary>
         /// Specifies a proxy server for the request, rather than a direct connection to the internet resource.
@@ -158,7 +168,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
                 case NameParameterSet:
                     try
                     {
-                        items.Add(NameParameterSetHelper(Name, URL, Priority, Trusted));
+                        items.Add(NameParameterSetHelper(Name, URL, Priority, Trusted, Authentication));
                     }
                     catch (Exception e)
                     {
@@ -215,7 +225,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
             }
         }
 
-        private PSRepositoryInfo AddToRepositoryStoreHelper(string repoName, Uri repoUrl, int repoPriority, bool repoTrusted)
+        private PSRepositoryInfo AddToRepositoryStoreHelper(string repoName, Uri repoUrl, int repoPriority, bool repoTrusted, Hashtable repoAuthentication)
         {
             // remove trailing and leading whitespaces, and if Name is just whitespace Name should become null now and be caught by following condition
             repoName = repoName.Trim(' ');
@@ -229,16 +239,25 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
                 throw new ArgumentException("Invalid url, must be one of the following Uri schemes: HTTPS, HTTP, FTP, File Based");
             }
 
+            if (repoAuthentication != null)
+            {
+                if (!repoAuthentication.ContainsKey(VaultNameAttribute) || string.IsNullOrEmpty(repoAuthentication[VaultNameAttribute].ToString())
+                    || !repoAuthentication.ContainsKey(SecretAttribute) || string.IsNullOrEmpty(repoAuthentication[SecretAttribute].ToString()))
+                {
+                    throw new ArgumentException($"Invalid Authentication, must include {VaultNameAttribute} and {SecretAttribute} key/(non-empty) value pairs");
+                }
+            }
+
             WriteDebug("All required values to add to repository provided, calling internal Add() API now");
             if (!ShouldProcess(repoName, "Register repository to repository store"))
             {
                 return null;
             }
 
-            return RepositorySettings.Add(repoName, repoUrl, repoPriority, repoTrusted);
+            return RepositorySettings.Add(repoName, repoUrl, repoPriority, repoTrusted, repoAuthentication);
         }
 
-        private PSRepositoryInfo NameParameterSetHelper(string repoName, Uri repoUrl, int repoPriority, bool repoTrusted)
+        private PSRepositoryInfo NameParameterSetHelper(string repoName, Uri repoUrl, int repoPriority, bool repoTrusted, Hashtable repoAuthentication)
         {
             if (repoName.Equals("PSGallery", StringComparison.OrdinalIgnoreCase))
             {
@@ -246,14 +265,14 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
                 throw new ArgumentException("Cannot register PSGallery with -Name parameter. Try: Register-PSResourceRepository -PSGallery");
             }
 
-            return AddToRepositoryStoreHelper(repoName, repoUrl, repoPriority, repoTrusted);
+            return AddToRepositoryStoreHelper(repoName, repoUrl, repoPriority, repoTrusted, repoAuthentication);
         }
 
         private PSRepositoryInfo PSGalleryParameterSetHelper(int repoPriority, bool repoTrusted)
         {
             Uri psGalleryUri = new Uri(PSGalleryRepoURL);
             WriteDebug("(PSGallerySet) internal name and uri values for Add() API are hardcoded and validated, priority and trusted values, if passed in, also validated");
-            return AddToRepositoryStoreHelper(PSGalleryRepoName, psGalleryUri, repoPriority, repoTrusted);
+            return AddToRepositoryStoreHelper(PSGalleryRepoName, psGalleryUri, repoPriority, repoTrusted, null);
         }
 
         private List<PSRepositoryInfo> RepositoriesParameterSetHelper()
@@ -263,11 +282,11 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
             {
                 if (repo.ContainsKey(PSGalleryRepoName))
                 {
-                    if (repo.ContainsKey("Name") || repo.ContainsKey("Url"))
+                    if (repo.ContainsKey("Name") || repo.ContainsKey("Url") || repo.ContainsKey("Authentication"))
                     {
                         WriteError(new ErrorRecord(
-                                new PSInvalidOperationException("Repository hashtable cannot contain PSGallery key with -Name and/or -URL key value pairs"),
-                                "NotProvideNameUrlForPSGalleryRepositoriesParameterSetRegistration",
+                                new PSInvalidOperationException("Repository hashtable cannot contain PSGallery key with -Name, -URL and/or -Authentication key value pairs"),
+                                "NotProvideNameUrlAuthForPSGalleryRepositoriesParameterSetRegistration",
                                 ErrorCategory.InvalidArgument,
                                 this));
                         continue;
@@ -344,13 +363,29 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
                 return null;
             }
 
+            Hashtable repoAuthentication = repo["Authentication"] as Hashtable;
+            if (repoAuthentication != null)
+            {
+                if (!repoAuthentication.ContainsKey(VaultNameAttribute) || string.IsNullOrEmpty(repoAuthentication[VaultNameAttribute].ToString())
+                    || !repoAuthentication.ContainsKey(SecretAttribute) || string.IsNullOrEmpty(repoAuthentication[SecretAttribute].ToString()))
+                {
+                    WriteError(new ErrorRecord(
+                        new PSInvalidOperationException($"Invalid Authentication, must include {VaultNameAttribute} and {SecretAttribute} key/(non-empty) value pairs"),
+                        "InvalidAuthentication",
+                        ErrorCategory.InvalidArgument,
+                        this));
+                    return null;
+                }
+            }
+
             try
             {
                 WriteDebug(String.Format("(RepositoriesParameterSet): on repo: {0}. Registers Name based repository", repo["Name"]));
                 return NameParameterSetHelper(repo["Name"].ToString(),
                     repoURL,
                     repo.ContainsKey("Priority") ? Convert.ToInt32(repo["Priority"].ToString()) : defaultPriority,
-                    repo.ContainsKey("Trusted") ? Convert.ToBoolean(repo["Trusted"].ToString()) : defaultTrusted);
+                    repo.ContainsKey("Trusted") ? Convert.ToBoolean(repo["Trusted"].ToString()) : defaultTrusted,
+                    repoAuthentication);
             }
             catch (Exception e)
             {

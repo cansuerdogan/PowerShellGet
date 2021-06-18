@@ -3,7 +3,7 @@
 
 Import-Module "$psscriptroot\PSGetTestUtils.psm1" -Force
 
-Describe "Test Register-PSResourceRepository" {
+Describe "Test Get-PSResourceRepository" {
     BeforeEach {
         Get-NewPSResourceRepositoryFile
         $tmpDir1Path = Join-Path -Path $TestDrive -ChildPath "tmpDir1"
@@ -83,6 +83,17 @@ Describe "Test Register-PSResourceRepository" {
         }
     }
 
+    It "given invalid and valid Authentication information, get valid ones and write error for non valid ones" {
+        $res = Get-PSResourceRepository -Name "psgettestlocal*" -ErrorVariable err -ErrorAction SilentlyContinue
+        $err.Count | Should -Not -Be 0
+        $err[0].FullyQualifiedErrorId | Should -BeExactly "ErrorGettingSpecifiedRepo,Microsoft.PowerShell.PowerShellGet.Cmdlets.GetPSResourceRepository"
+
+        # should have successfully got the other valid/registered repositories with no error
+        foreach ($entry in $res) {
+            $entry.Name | Should -BeIn "psgettestlocal","psgettestlocal2"
+        }
+    }
+
     It "throw error and get no repositories when provided null Name" {
         # $errorMsg = "Cannot validate argument on parameter 'Name'. The argument is null or empty. Provide an argument that is not null or empty, and then try the command again."
         {Get-PSResourceRepository -Name $null -ErrorAction Stop} | Should -Throw -ErrorId "ParameterArgumentValidationError,Microsoft.PowerShell.PowerShellGet.Cmdlets.GetPSResourceRepository"
@@ -94,7 +105,9 @@ Describe "Test Register-PSResourceRepository" {
     }
 
     It "find all repositories if no Name provided" {
-        $res = Get-PSResourceRepository
+        # there are 2 invalid repositories
+        $res = Get-PSResourceRepository -ErrorVariable err -ErrorAction SilentlyContinue
         $res.Count | Should -BeGreaterThan 0
+        $err.Count | Should -Not -Be 0
     }
 }
