@@ -20,8 +20,10 @@ function DoBuild
     # Copy module script files
     Write-Verbose -Verbose "Copy-Item ${SrcPath}/${ModuleName}.psd1 to $BuildOutPath"
     Copy-Item -Path "${SrcPath}/${ModuleName}.psd1" -Dest "$BuildOutPath" -Force
-    Write-Verbose -Verbose "Copy Item ${SrcPath}/PSModule.psm1 to $BuildOutPath"
-    Copy-Item -Path "${SrcPath}/PSModule.psm1" -Dest "$BuildOutPath" -Force
+
+    #Copy module format ps1xml file
+    Write-Verbose -Verbose -Message "Copy-Item ${SrcPath}/${FormatFileName}.ps1xml to $BuildOutPath"
+    Copy-Item -Path "${SrcPath}/${FormatFileName}.ps1xml" -Dest "$BuildOutPath" -Force
 
     # Create BuildFramework directory for binary location
     $BuildOutputBin = Join-Path -Path $BuildOutPath -ChildPath $BuildFramework
@@ -77,6 +79,7 @@ function DoBuild
                     'NuGet.Protocol'
                     'NuGet.Repositories'
                     'NuGet.Versioning'
+                    'Newtonsoft.Json'
                 )
             } elseif ($BuildFramework -eq 'net472') {
                 $assemblyNames = @(
