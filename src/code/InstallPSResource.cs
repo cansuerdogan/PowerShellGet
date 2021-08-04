@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 using System;
@@ -15,7 +16,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
     /// It returns nothing.
     /// </summary>
 
-    [Cmdlet(VerbsLifecycle.Install, "PSResource", DefaultParameterSetName = "NameParameterSet", SupportsShouldProcess = true, HelpUri = "<add>")]
+    [Cmdlet(VerbsLifecycle.Install, "PSResource", DefaultParameterSetName = "NameParameterSet", SupportsShouldProcess = true)]
     public sealed
     class InstallPSResource : PSCmdlet
     {
@@ -124,13 +125,46 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
 
         protected override void ProcessRecord()
         {
+            if (!ShouldProcess(string.Format("package to install: '{0}'", String.Join(", ", Name))))
+            {
+                WriteVerbose(string.Format("Install operation cancelled by user for packages: {0}", String.Join(", ", Name)));
+                return;
+            }
+
             var installHelper = new InstallHelper(updatePkg: false, savePkg: false, cmdletPassedIn: this);
 
             switch (ParameterSetName)
             {
                 case NameParameterSet:
+                    var namesToInstall = Utils.ProcessNameWildcards(Name, out string[] errorMsgs, out bool nameContainsWildcard);
+                    if (nameContainsWildcard)
+                    {
+                        WriteError(new ErrorRecord(
+                            new PSInvalidOperationException("Name with wildcards is not supported for Install-PSResource cmdlet"),
+                            "NameContainsWildcard",
+                            ErrorCategory.InvalidArgument,
+                            this));
+                        return;
+                    }
+                    
+                    foreach (string error in errorMsgs)
+                    {
+                        WriteError(new ErrorRecord(
+                            new PSInvalidOperationException(error),
+                            "ErrorFilteringNamesForUnsupportedWildcards",
+                            ErrorCategory.InvalidArgument,
+                            this));
+                    }
+
+                    // this catches the case where Name wasn't passed in as null or empty,
+                    // but after filtering out unsupported wildcard names there are no elements left in namesToInstall
+                    if (namesToInstall.Length == 0)
+                    {
+                        return;
+                    }
+
                     installHelper.InstallPackages(
-                        names: Name,
+                        names: namesToInstall,
                         versionRange: _versionRange,
                         prerelease: Prerelease,
                         repository: Repository,

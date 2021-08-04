@@ -66,40 +66,50 @@ namespace Microsoft.PowerShell.PowerShellGet.UtilClasses
             return strArray;
         }
 
-        public static string[] FilterOutWildcardNames(
+        public static string[] ProcessNameWildcards(
             string[] pkgNames,
-            out string[] errorMsgs)
+            out string[] errorMsgs,
+            out bool isContainWildcard)
         {
-            List<string> errorFreeNames = new List<string>();
-            List<string> errorMsgList = new List<string>();
+            List<string> namesWithSupportedWildcards = new List<string>();
+            List<string> errorMsgsList = new List<string>();
 
-            foreach (string n in pkgNames)
+            if (pkgNames == null)
             {
-                bool isNameErrorProne = false;
-                if (WildcardPattern.ContainsWildcardCharacters(n))
-                {
-                    if (String.Equals(n, "*", StringComparison.InvariantCultureIgnoreCase))
-                    {
-                        errorMsgList = new List<string>(); // clear prior error messages
-                        errorMsgList.Add("-Name '*' is not supported for Find-PSResource so all Name entries will be discarded.");
-                        errorFreeNames = new List<string>();
-                        break;
-                    }
-                    else if (n.Contains("?") || n.Contains("["))
-                    {
-                        errorMsgList.Add(String.Format("-Name with wildcards '?' and '[' are not supported for Find-PSResource so Name entry: {0} will be discarded.", n));
-                        isNameErrorProne = true;
-                    }
-                }
+                isContainWildcard = true;
+                errorMsgs = errorMsgsList.ToArray();
+                return new string[] {"*"};
+            }
 
-                if (!isNameErrorProne)
+            isContainWildcard = false;
+            foreach (string name in pkgNames)
+            {
+                if (WildcardPattern.ContainsWildcardCharacters(name))
                 {
-                    errorFreeNames.Add(n);
+                    if (String.Equals(name, "*", StringComparison.InvariantCultureIgnoreCase))
+                    {
+                        isContainWildcard = true;
+                        errorMsgs = new string[] {};
+                        return new string[] {"*"};
+                    }
+
+                    if (name.Contains("?") || name.Contains("["))
+                    {
+                        errorMsgsList.Add(String.Format("-Name with wildcards '?' and '[' are not supported for this cmdlet so Name entry: {0} will be discarded.", name));
+                        continue;
+                    }
+
+                    isContainWildcard = true;
+                    namesWithSupportedWildcards.Add(name);
+                }
+                else
+                {
+                    namesWithSupportedWildcards.Add(name);
                 }
             }
 
-            errorMsgs = errorMsgList.ToArray();
-            return errorFreeNames.ToArray();
+            errorMsgs = errorMsgsList.ToArray();
+            return namesWithSupportedWildcards.ToArray();
         }
     
         #endregion
@@ -145,9 +155,7 @@ namespace Microsoft.PowerShell.PowerShellGet.UtilClasses
            out VersionRange versionRange)
         {
             versionRange = null;
-
             if (version == null) { return false; }
-
 
             if (version.Trim().Equals("*"))
             {
@@ -292,7 +300,7 @@ namespace Microsoft.PowerShell.PowerShellGet.UtilClasses
             // add all module directories or script files
             foreach (string path in resourcePaths)
             {
-                psCmdlet.WriteDebug(string.Format("Retrieving directories in the path '{0}'", path));
+                psCmdlet.WriteVerbose(string.Format("Retrieving directories in the path '{0}'", path));
 
                 if (path.EndsWith("Scripts"))
                 {
@@ -323,7 +331,7 @@ namespace Microsoft.PowerShell.PowerShellGet.UtilClasses
             // ./PowerShell/Modules/TestModule
             // need to use .ToList() to cast the IEnumerable<string> to type List<string>
             pathsToSearch = pathsToSearch.Distinct(StringComparer.InvariantCultureIgnoreCase).ToList();
-            pathsToSearch.ForEach(dir => psCmdlet.WriteDebug(string.Format("All paths to search: '{0}'", dir)));
+            pathsToSearch.ForEach(dir => psCmdlet.WriteVerbose(string.Format("All paths to search: '{0}'", dir)));
 
             return pathsToSearch;
         }
@@ -350,7 +358,7 @@ namespace Microsoft.PowerShell.PowerShellGet.UtilClasses
             }
 
             installationPaths = installationPaths.Distinct(StringComparer.InvariantCultureIgnoreCase).ToList();
-            installationPaths.ForEach(dir => psCmdlet.WriteDebug(string.Format("All paths to search: '{0}'", dir)));
+            installationPaths.ForEach(dir => psCmdlet.WriteVerbose(string.Format("All paths to search: '{0}'", dir)));
 
             return installationPaths;
         }

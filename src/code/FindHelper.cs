@@ -115,12 +115,12 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
                     PSRepositoryInfo psGalleryScripts = new PSRepositoryInfo(_psGalleryScriptsRepoName, psGalleryScriptsUrl, repositoriesToSearch[i].Priority, false, null);
                     if (_type == ResourceType.None)
                     {
-                        _cmdletPassedIn.WriteDebug("Null Type provided, so add PSGalleryScripts repository");
+                        _cmdletPassedIn.WriteVerbose("Null Type provided, so add PSGalleryScripts repository");
                         repositoriesToSearch.Insert(i + 1, psGalleryScripts);
                     }
                     else if (_type != ResourceType.None && _type == ResourceType.Script)
                     {
-                        _cmdletPassedIn.WriteDebug("Type Script provided, so add PSGalleryScripts and remove PSGallery (Modules only)");
+                        _cmdletPassedIn.WriteVerbose("Type Script provided, so add PSGalleryScripts and remove PSGallery (Modules only)");
                         repositoriesToSearch.Insert(i + 1, psGalleryScripts);
                         repositoriesToSearch.RemoveAt(i); // remove PSGallery
                     }
@@ -129,7 +129,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
 
             for (int i = 0; i < repositoriesToSearch.Count && _pkgsLeftToFind.Any(); i++)
             {
-                _cmdletPassedIn.WriteDebug(string.Format("Searching in repository {0}", repositoriesToSearch[i].Name));
+                _cmdletPassedIn.WriteVerbose(string.Format("Searching in repository {0}", repositoriesToSearch[i].Name));
                 foreach (var pkg in SearchFromRepository(
                     repositoryName: repositoriesToSearch[i].Name,
                     repositoryUrl: repositoriesToSearch[i].Url,
@@ -243,7 +243,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
             {
                 if (String.IsNullOrWhiteSpace(pkgName))
                 {
-                    _cmdletPassedIn.WriteDebug(String.Format("Package name: {0} provided was null or whitespace, so name was skipped in search.",
+                    _cmdletPassedIn.WriteVerbose(String.Format("Package name: {0} provided was null or whitespace, so name was skipped in search.",
                         pkgName == null ? "null string" : pkgName));
                     continue;
                 }
@@ -270,6 +270,25 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
             SourceCacheContext sourceContext)
         {
             List<IPackageSearchMetadata> foundPackagesMetadata = new List<IPackageSearchMetadata>();
+            VersionRange versionRange = null;
+
+            if (_version != null)
+            {
+                if (!Utils.TryParseVersionOrVersionRange(_version, out versionRange))
+                {
+                    _cmdletPassedIn.WriteError(new ErrorRecord(
+                        new ArgumentException("Argument for -Version parameter is not in the proper format"),
+                        "IncorrectVersionFormat",
+                        ErrorCategory.InvalidArgument,
+                        this));
+                    yield break;
+                }
+
+                if (_version.Contains("-"))
+                {
+                    _prerelease = true;
+                }
+            }
 
             // filter by param: Name
             if (!pkgName.Contains("*"))
@@ -401,16 +420,6 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
             }
             else
             {
-                if (!Utils.TryParseVersionOrVersionRange(_version, out VersionRange versionRange))
-                {
-                    _cmdletPassedIn.WriteError(new ErrorRecord(
-                        new ArgumentException("Argument for -Version parameter is not in the proper format"),
-                        "IncorrectVersionFormat",
-                        ErrorCategory.InvalidArgument,
-                        this));
-                    yield break;
-                }
-
                 // at this point, version should be parsed successfully, into allVersions (null or "*") or versionRange (specific or range)
                 if (pkgName.Contains("*"))
                 {

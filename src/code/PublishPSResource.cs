@@ -1,6 +1,14 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
+using Microsoft.PowerShell.PowerShellGet.UtilClasses;
+using MoreLinq;
+using MoreLinq.Extensions;
+using NuGet.Commands;
+using NuGet.Common;
+using NuGet.Configuration;
+using NuGet.Packaging;
+using NuGet.Versioning;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -10,15 +18,6 @@ using System.Management.Automation;
 using System.Management.Automation.Language;
 using System.Net.Http;
 using System.Xml;
-using Microsoft.PowerShell.PowerShellGet.UtilClasses;
-using MoreLinq;
-using MoreLinq.Extensions;
-using NuGet.Commands;
-using NuGet.Common;
-using NuGet.Configuration;
-using NuGet.Packaging;
-using NuGet.Versioning;
-
 
 namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
 {
@@ -44,21 +43,6 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
         [ValidateNotNullOrEmpty]
         [ArgumentCompleter(typeof(RepositoryNameCompleter))]
         public string Repository { get; set; }
-
-        /// <summary>
-        /// Can be used to publish a nupkg locally.
-        /// </summary>
-        [Parameter()]
-        [ValidateNotNullOrEmpty]
-        public string DestinationPath
-        {
-            get
-            { return _destinationPath; }
-
-            set
-            { _destinationPath =  SessionState.Path.GetResolvedPSPathFromPSPath(value).First().Path; }
-        }
-        private string _destinationPath;
 
         /// <summary>
         /// Specifies the path to the resource that you want to publish. This parameter accepts the path to the folder that contains the resource.
@@ -192,7 +176,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
             // TODO: think about including the repository the resource is being published to
             if (!ShouldProcess(string.Format("Publish resource '{0}' from the machine.", _path)))
             {
-                WriteDebug("ShouldProcess is set to false.");
+                WriteVerbose("ShouldProcess is set to false.");
                 return;
             }
             
@@ -303,7 +287,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
                 if (string.IsNullOrEmpty(nuspec))
                 {
                     // nuspec creation failed.
-                    WriteDebug("Nuspec creation failed.");
+                    WriteVerbose("Nuspec creation failed.");
                     return;
                 }
 
@@ -387,7 +371,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
                  PushNupkg(outputNupkgDir, repositoryUrl);
             }
             finally {
-                WriteDebug(string.Format("Deleting temporary directory '{0}'", outputDir));
+                WriteVerbose(string.Format("Deleting temporary directory '{0}'", outputDir));
                 Directory.Delete(outputDir, recursive:true);
             }
         }
@@ -636,7 +620,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
                     metadataElement.AppendChild(element);
                 }
                 else {
-                    WriteDebug(string.Format("Creating XML element failed. Unable to get value from key '{0}'.", key));
+                    WriteVerbose(string.Format("Creating XML element failed. Unable to get value from key '{0}'.", key));
                 }
             }
 
@@ -828,11 +812,11 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
             bool success = runner.RunPackageBuild();
             if (success)
             {
-                WriteDebug("Successfully packed the resource into a .nupkg");
+                WriteVerbose("Successfully packed the resource into a .nupkg");
             }
             else
             {
-                WriteDebug("Successfully packed the resource into a .nupkg");
+                WriteVerbose("Successfully packed the resource into a .nupkg");
             }
 
             return success;

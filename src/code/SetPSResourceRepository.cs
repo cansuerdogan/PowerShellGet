@@ -108,7 +108,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
         {
             try
             {
-                WriteDebug("Calling API to check repository store exists in non-corrupted state");
+                WriteVerbose("Calling API to check repository store exists in non-corrupted state");
                 RepositorySettings.CheckRepositoryStore();
             }
             catch (PSInvalidOperationException e)
@@ -226,7 +226,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
                 throw new ArgumentException("Either URL, Priority, Trusted or Authentication parameters must be requested to be set");
             }
 
-            WriteDebug("All required values to set repository provided, calling internal Update() API now");
+            WriteVerbose("All required values to set repository provided, calling internal Update() API now");
             if (!ShouldProcess(repoName, "Set repository's value(s) in repository store"))
             {
                 return null;
@@ -260,7 +260,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
 
         private PSRepositoryInfo RepoValidationHelper(Hashtable repo)
         {
-            WriteDebug(String.Format("Parsing through repository: {0}", repo["Name"]));
+            WriteVerbose(String.Format("Parsing through repository: {0}", repo["Name"]));
 
             Uri repoURL = null;
             if (repo.ContainsKey("Url"))

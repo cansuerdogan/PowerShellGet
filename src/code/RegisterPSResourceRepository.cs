@@ -239,7 +239,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
                 }
             }
 
-            WriteDebug("All required values to add to repository provided, calling internal Add() API now");
+            WriteVerbose("All required values to add to repository provided, calling internal Add() API now");
             if (!ShouldProcess(repoName, "Register repository to repository store"))
             {
                 return null;
@@ -252,7 +252,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
         {
             if (repoName.Equals("PSGallery", StringComparison.OrdinalIgnoreCase))
             {
-                WriteDebug("Provided Name (NameParameterSet) but with invalid value of PSGallery");
+                WriteVerbose("Provided Name (NameParameterSet) but with invalid value of PSGallery");
                 throw new ArgumentException("Cannot register PSGallery with -Name parameter. Try: Register-PSResourceRepository -PSGallery");
             }
 
@@ -262,7 +262,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
         private PSRepositoryInfo PSGalleryParameterSetHelper(int repoPriority, bool repoTrusted)
         {
             Uri psGalleryUri = new Uri(PSGalleryRepoURL);
-            WriteDebug("(PSGallerySet) internal name and uri values for Add() API are hardcoded and validated, priority and trusted values, if passed in, also validated");
+            WriteVerbose("(PSGallerySet) internal name and uri values for Add() API are hardcoded and validated, priority and trusted values, if passed in, also validated");
             return AddToRepositoryStoreHelper(PSGalleryRepoName, psGalleryUri, repoPriority, repoTrusted, null);
         }
 
@@ -285,7 +285,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
 
                     try
                     {
-                        WriteDebug("(RepositoriesParameterSet): on repo: PSGallery. Registers PSGallery repository");
+                        WriteVerbose("(RepositoriesParameterSet): on repo: PSGallery. Registers PSGallery repository");
                         reposAddedFromHashTable.Add(PSGalleryParameterSetHelper(
                             repo.ContainsKey("Priority") ? (int)repo["Priority"] : defaultPriority,
                             repo.ContainsKey("Trusted") ? (bool)repo["Trusted"] : defaultTrusted));
@@ -370,7 +370,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
 
             try
             {
-                WriteDebug(String.Format("(RepositoriesParameterSet): on repo: {0}. Registers Name based repository", repo["Name"]));
+                WriteVerbose(String.Format("(RepositoriesParameterSet): on repo: {0}. Registers Name based repository", repo["Name"]));
                 return NameParameterSetHelper(repo["Name"].ToString(),
                     repoURL,
                     repo.ContainsKey("Priority") ? Convert.ToInt32(repo["Priority"].ToString()) : defaultPriority,

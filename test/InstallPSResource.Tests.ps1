@@ -22,6 +22,17 @@ Describe 'Test Install-PSResource for Module' {
         Get-RevertPSResourceRepositoryFile
     }
 
+    $testCases = @{Name="*";                          ErrorId="NameContainsWildcard"},
+                 @{Name="TestModule*";                ErrorId="NameContainsWildcard"},
+                 @{Name="Test?Module","Test[Module";  ErrorId="ErrorFilteringNamesForUnsupportedWildcards"}
+
+    It "Should not install resource with wildcard in name" -TestCases $testCases {
+        param($Name, $ErrorId)
+        Install-PSResource -Name $Name -ErrorVariable err -ErrorAction SilentlyContinue
+        $err.Count | Should -Not -Be 0
+        $err[0].FullyQualifiedErrorId | Should -BeExactly "$ErrorId,Microsoft.PowerShell.PowerShellGet.Cmdlets.InstallPSResource"
+    }
+
     It "Install specific module resource by name" {
         Install-PSResource -Name "TestModule" -Repository $TestGalleryName  
         $pkg = Get-Module "TestModule" -ListAvailable
@@ -42,7 +53,6 @@ Describe 'Test Install-PSResource for Module' {
         $pkg = Get-Module $pkgNames -ListAvailable
         $pkg.Name | Should -Be $pkgNames
     }
-
 
     It "Should not install resource given nonexistant name" {
         Install-PSResource -Name NonExistantModule -Repository $TestGalleryName  
@@ -189,7 +199,7 @@ Describe 'Test Install-PSResource for Module' {
         Install-PSResource -Name "testModuleWithlicense" -Repository $TestGalleryName -AcceptLicense
         $pkg = Get-InstalledPSResource "testModuleWithlicense"
         $pkg.Name | Should -Be "testModuleWithlicense" 
-        $pkg.Version | Should -Be "0.0.1.0"
+        $pkg.Version | Should -Be "0.0.3.0"
     }
 
     It "Install resource should not prompt 'trust repository' if repository is not trusted but -TrustRepository is used" {
@@ -225,6 +235,13 @@ Describe 'Test Install-PSResource for Module' {
         $pkg = Get-Module $publishModuleName -ListAvailable
         $pkg | Should -Not -BeNullOrEmpty
         $pkg.Name | Should -Be $publishModuleName
+    }
+
+    It "Install module using -WhatIf, should not install the module" {
+        Install-PSResource -Name "TestModule" -WhatIf
+    
+        $res = Get-Module "TestModule" -ListAvailable
+        $res | Should -BeNullOrEmpty
     }
 }
 
