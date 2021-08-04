@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Data;
 using Dbg = System.Diagnostics.Debug;
@@ -9,6 +10,7 @@ using System.Linq;
 using System.Management.Automation;
 using System.Net;
 using System.Net.Http;
+using System.Security;
 using System.Threading;
 using MoreLinq.Extensions;
 using Microsoft.PowerShell.PowerShellGet.UtilClasses;
@@ -44,6 +46,9 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
         private const int SearchAsyncMaxTake = 6000;
         private const int SearchAsyncMaxReturned = 5990;
         private const int GalleryMax = 12000;
+
+        private static readonly string VaultNameAttribute = "VaultName";
+        private static readonly string SecretAttribute = "Secret";
 
         public FindHelper(CancellationToken cancellationToken, PSCmdlet cmdletPassedIn)
         {
@@ -127,7 +132,8 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
                 _cmdletPassedIn.WriteDebug(string.Format("Searching in repository {0}", repositoriesToSearch[i].Name));
                 foreach (var pkg in SearchFromRepository(
                     repositoryName: repositoriesToSearch[i].Name,
-                    repositoryUrl: repositoriesToSearch[i].Url))
+                    repositoryUrl: repositoriesToSearch[i].Url,
+                    repositoryAuthentication: repositoriesToSearch[i].Authentication))
                 {
                     yield return pkg;
                 }
@@ -136,7 +142,8 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
 
         public IEnumerable<PSResourceInfo> SearchFromRepository(
             string repositoryName,
-            Uri repositoryUrl)
+            Uri repositoryUrl,
+            Hashtable repositoryAuthentication)
         {
             PackageSearchResource resourceSearch;
             PackageMetadataResource resourceMetadata;
@@ -172,11 +179,23 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
 
             // HTTP, HTTPS, FTP Uri schemes (only other Uri schemes allowed by RepositorySettings.Read() API)
             PackageSource source = new PackageSource(repositoryUrl.ToString());
+
+            // Explicitly passed in Credential takes precedence
             if (_credential != null)
             {
                 string password = new NetworkCredential(string.Empty, _credential.Password).Password;
                 source.Credentials = PackageSourceCredential.FromUserInput(repositoryUrl.ToString(), _credential.UserName, password, true, null);
                 _cmdletPassedIn.WriteVerbose("credential successfully set for repository: " + repositoryName);
+            }
+            else if (repositoryAuthentication != null)
+            {
+                var authHelper = new AuthenticationHelper(_cmdletPassedIn);
+                string password = authHelper.GetRepositoryAuthenticationPassword(
+                    repositoryAuthentication[VaultNameAttribute].ToString(),
+                    repositoryAuthentication[SecretAttribute].ToString());
+
+                source.Credentials = PackageSourceCredential.FromUserInput(repositoryUrl.ToString(), repositoryAuthentication[SecretAttribute].ToString(), password, true, null);
+                _cmdletPassedIn.WriteVerbose("credential successfully read from vault and set for repository: " + repositoryName);
             }
 
             // GetCoreV3() API is able to handle V2 and V3 repository endpoints
