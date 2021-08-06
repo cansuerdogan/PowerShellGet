@@ -172,7 +172,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
             }
 
             // check if ADOFeed- for which searching for Name with wildcard has a different logic flow
-            if (repositoryUrl.ToString().Contains("pkgs.visualstudio.com"))
+            if (repositoryUrl.ToString().Contains("pkgs."))
             {
                 _isADOFeedRepository = true;
             }
