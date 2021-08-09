@@ -1,6 +1,14 @@
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
+using Microsoft.PowerShell.PowerShellGet.UtilClasses;
+using MoreLinq;
+using MoreLinq.Extensions;
+using NuGet.Commands;
+using NuGet.Common;
+using NuGet.Configuration;
+using NuGet.Packaging;
+using NuGet.Versioning;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -10,25 +18,14 @@ using System.Management.Automation;
 using System.Management.Automation.Language;
 using System.Net.Http;
 using System.Xml;
-using Microsoft.PowerShell.PowerShellGet.UtilClasses;
-using MoreLinq;
-using MoreLinq.Extensions;
-using NuGet.Commands;
-using NuGet.Common;
-using NuGet.Configuration;
-using NuGet.Packaging;
-using NuGet.Versioning;
-
 
 namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
 {
     /// <summary>
     /// Publishes a module, script, or nupkg to a designated repository.
     /// </summary>
-    [Cmdlet(VerbsData.Publish, "PSResource", SupportsShouldProcess = true,
-        HelpUri = "<add>")]
-    public sealed
-    class PublishPSResource : PSCmdlet
+    [Cmdlet(VerbsData.Publish, "PSResource", SupportsShouldProcess = true)]
+    public sealed class PublishPSResource : PSCmdlet
     {
         #region Parameters
 
@@ -37,29 +34,15 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
         /// </summary>
         [Parameter()]
         [ValidateNotNullOrEmpty]
-        public string APIKey { get; set; }
+        public string ApiKey { get; set; }
 
         /// <summary>
         /// Specifies the repository to publish to.
         /// </summary>
         [Parameter()]
         [ValidateNotNullOrEmpty]
+        [ArgumentCompleter(typeof(RepositoryNameCompleter))]
         public string Repository { get; set; }
-
-        /// <summary>
-        /// Can be used to publish a nupkg locally.
-        /// </summary>
-        [Parameter()]
-        [ValidateNotNullOrEmpty]
-        public string DestinationPath
-        {
-            get
-            { return _destinationPath; }
-
-            set
-            { _destinationPath =  SessionState.Path.GetResolvedPSPathFromPSPath(value).First().Path; }
-        }
-        private string _destinationPath;
 
         /// <summary>
         /// Specifies the path to the resource that you want to publish. This parameter accepts the path to the folder that contains the resource.
@@ -168,11 +151,21 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
 
         #endregion
 
-        #region members
+        #region Members
+
         private NuGetVersion _pkgVersion;
         private string _pkgName;
         private static char[] _PathSeparators = new [] { System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar };
+
         #endregion
+
+        #region Method overrides
+        protected override void BeginProcessing()
+        {
+            // Create a respository story (the PSResourceRepository.xml file) if it does not already exist
+            // This is to create a better experience for those who have just installed v3 and want to get up and running quickly
+            RepositorySettings.CheckRepositoryStore();
+        }
 
         protected override void ProcessRecord()
         {
@@ -189,7 +182,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
             // TODO: think about including the repository the resource is being published to
             if (!ShouldProcess(string.Format("Publish resource '{0}' from the machine.", _path)))
             {
-                WriteDebug("ShouldProcess is set to false.");
+                WriteVerbose("ShouldProcess is set to false.");
                 return;
             }
             
@@ -288,8 +281,8 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
                 {
                     nuspec = CreateNuspec(outputDir, moduleFileInfo, out dependencies, parsedMetadataHash);
                 }
-                catch {
-                    var message = "Nuspec creation failed.";
+                catch (Exception e) {
+                    var message = string.Format("Nuspec creation failed: {0}", e.Message);
                     var ex = new ArgumentException(message);
                     var nuspecCreationFailed = new ErrorRecord(ex, "NuspecCreationFailed", ErrorCategory.ObjectNotFound, null);
                     WriteError(nuspecCreationFailed);
@@ -300,7 +293,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
                 if (string.IsNullOrEmpty(nuspec))
                 {
                     // nuspec creation failed.
-                    WriteDebug("Nuspec creation failed.");
+                    WriteVerbose("Nuspec creation failed.");
                     return;
                 }
 
@@ -317,7 +310,6 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
                 }
 
                 string repositoryUrl = repository.Url.AbsoluteUri;
-
 
                 // Check if dependencies already exist within the repo if:
                 // 1) the resource to publish has dependencies and 
@@ -385,10 +377,14 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
                  PushNupkg(outputNupkgDir, repositoryUrl);
             }
             finally {
-                WriteDebug(string.Format("Deleting temporary directory '{0}'", outputDir));
+                WriteVerbose(string.Format("Deleting temporary directory '{0}'", outputDir));
                 Directory.Delete(outputDir, recursive:true);
             }
         }
+
+        #endregion
+
+        #region Private methods
 
         private bool IsValidModuleManifest(string moduleManifestPath)
         {
@@ -461,7 +457,8 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
                 }
                 else
                 {
-                    var data = ast.Find(a => a is HashtableAst, false);
+                    // Must search nested script blocks because 'Tags' are located under 'PrivateData' > 'PSData'
+                    var data = ast.Find(a => a is HashtableAst, true);
                     if (data != null)
                     {
                         parsedMetadataHash = (Hashtable) data.SafeGetValue();
@@ -516,18 +513,26 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
                 return string.Empty;
             }
 
-            // Look for Prerelease tag
+            // Look for Prerelease tag and then process any Tags in PrivateData > PSData
             if (parsedMetadataHash.ContainsKey("PrivateData"))
             {
                 if (parsedMetadataHash["PrivateData"] is Hashtable privateData &&
                     privateData.ContainsKey("PSData"))
                 {
-                    if (privateData["PSData"] is Hashtable psData &&
-                        psData.ContainsKey("Prerelease"))
+                    if (privateData["PSData"] is Hashtable psData)
                     {
-                        if (psData["Prerelease"] is string preReleaseVersion)
+                        if (psData.ContainsKey("Prerelease") && psData["Prerelease"] is string preReleaseVersion)
                         {
-                            version = string.Format(@"{0}-{1}", version, preReleaseVersion);
+                            version = string.Format(@"{0}-{1}", version, preReleaseVersion);    
+                        }
+                        if (psData.ContainsKey("Tags") && psData["Tags"] is Array manifestTags)
+                        {
+                            var tagArr = new List<string>();
+                            foreach (string tag in manifestTags)
+                            {
+                                tagArr.Add(tag);
+                            }
+                            parsedMetadataHash["tags"] = string.Join(" ", tagArr.ToArray());
                         }
                     }
                 }
@@ -608,7 +613,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
                 <icon>Powershell_black_64.png</icon>
                 <projectUrl>https://github.com/PowerShell/PowerShell</projectUrl>
                 <description>Example description here</description>
-                <copyright>© Microsoft Corporation. All rights reserved.</copyright>
+                <copyright>Copyright (c) Microsoft Corporation. All rights reserved.</copyright>
                 <language>en-US</language>
                 <tags>PowerShell</tags>
                 <dependencies>
@@ -630,7 +635,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
                     metadataElement.AppendChild(element);
                 }
                 else {
-                    WriteDebug(string.Format("Creating XML element failed. Unable to get value from key '{0}'.", key));
+                    WriteVerbose(string.Format("Creating XML element failed. Unable to get value from key '{0}'.", key));
                 }
             }
 
@@ -822,11 +827,11 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
             bool success = runner.RunPackageBuild();
             if (success)
             {
-                WriteDebug("Successfully packed the resource into a .nupkg");
+                WriteVerbose("Successfully packed the resource into a .nupkg");
             }
             else
             {
-                WriteDebug("Successfully packed the resource into a .nupkg");
+                WriteVerbose("Successfully packed the resource into a .nupkg");
             }
 
             return success;
@@ -854,7 +859,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
                         sourceProvider: new PackageSourceProvider(settings),
                         packagePath: fullNupkgFile,
                         source: publishLocation,
-                        apiKey: APIKey,
+                        apiKey: ApiKey,
                         symbolSource: null,
                         symbolApiKey: null,
                         timeoutSeconds: 0,
@@ -875,10 +880,10 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
                 {
                     if (e.Message.Contains("API"))
                     {
-                        var message = String.Format("{0} Please try running again with the -APIKey parameter and specific API key for the repository specified.", e.Message);
+                        var message = String.Format("{0} Please try running again with the -ApiKey parameter and specific API key for the repository specified.", e.Message);
                         ex = new ArgumentException(message);
-                        var APIKeyError = new ErrorRecord(ex, "APIKeyError", ErrorCategory.AuthenticationError, null);
-                        WriteError(APIKeyError);
+                        var ApiKeyError = new ErrorRecord(ex, "ApiKeyError", ErrorCategory.AuthenticationError, null);
+                        WriteError(ApiKeyError);
                     }
                     else
                     {
@@ -923,4 +928,6 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
             }            
         }
     }
+
+    #endregion
 }

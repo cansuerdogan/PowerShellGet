@@ -15,10 +15,16 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
     /// It retrieves a resource that was installed with Install-PSResource
     /// Returns a single resource or multiple resource.
     /// </summary>
-    [Cmdlet(VerbsCommon.Get, "InstalledPSResource", HelpUri = "<add>")]
-    public sealed
-    class GetInstalledPSResource : PSCmdlet
+    [Cmdlet(VerbsCommon.Get, "InstalledPSResource")]
+    public sealed class GetInstalledPSResource : PSCmdlet
     {
+        #region Members
+
+        private VersionRange _versionRange;
+        private List<string> _pathsToSearch;
+
+        #endregion
+
         #region Parameters
 
         /// <summary>
@@ -43,19 +49,11 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
 
         #endregion
 
-        private CancellationTokenSource _source;
-        private CancellationToken _cancellationToken;
-        private VersionRange _versionRange;
-        List<string> _pathsToSearch;
-
         #region Methods
 
         protected override void BeginProcessing()
         {
-            _source = new CancellationTokenSource();
-            _cancellationToken = _source.Token;
-
-            // validate that if a -Version param is passed in that it can be parsed into a NuGet version range. 
+            // Validate that if a -Version param is passed in that it can be parsed into a NuGet version range. 
             // an exact version will be formatted into a version range.
             if (Version == null)
             {
@@ -69,59 +67,70 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
                 ThrowTerminatingError(IncorrectVersionFormat);
             }
 
+            // Determine paths to search.
+            _pathsToSearch = new List<string>();
             if (Path != null)
             {
-                this.WriteDebug(string.Format("Provided path is: '{0}'", Path));
+                WriteVerbose(string.Format("Provided path is: '{0}'", Path));
 
-                var resolvedPath = SessionState.Path.GetResolvedPSPathFromPSPath(Path).ToString();
+                var resolvedPaths = SessionState.Path.GetResolvedPSPathFromPSPath(Path);
+                if (resolvedPaths.Count != 1)
+                {
+                    ThrowTerminatingError(
+                        new ErrorRecord(
+                            new PSArgumentException("Error: Could not resolve provided Path argument into a single path."),
+                            "ErrorInvalidPathArgument",
+                            ErrorCategory.InvalidArgument,
+                            this));
+                }
 
-                try
+                var resolvedPath = resolvedPaths[0].Path;
+                WriteVerbose(string.Format("Provided resolved path is '{0}'", resolvedPath));
+
+                var versionPaths = Utils.GetSubDirectories(resolvedPath);
+                if (versionPaths.Length == 0)
                 {
-                    _pathsToSearch.AddRange(Directory.GetDirectories(resolvedPath));
+                    ThrowTerminatingError(
+                        new ErrorRecord(
+                            exception: new PSInvalidOperationException(
+                                $"Error cannot find expected subdirectories in provided path: {Path}"),
+                            "PathMissingExpectedSubdirectories",
+                            ErrorCategory.InvalidOperation,
+                            targetObject: null));
                 }
-                catch (Exception e)
-                {
-                    var exMessage = String.Format("Error retrieving directories from provided path '{0}': '{1}'.", Path, e.Message);
-                    var ex = new ArgumentException(exMessage);
-                    var ErrorRetrievingDirectories = new ErrorRecord(ex, "ErrorRetrievingDirectories", ErrorCategory.ResourceUnavailable, null);
-                    ThrowTerminatingError(ErrorRetrievingDirectories);
-                }
+
+                _pathsToSearch.AddRange(versionPaths);
             }
             else
             {
                 // retrieve all possible paths
                 _pathsToSearch = Utils.GetAllResourcePaths(this);
             }
-
-            if (Name == null)
-            {
-                Name = new string[] { "*" };
-            }
-            // if '*' is passed in as an argument for -Name with other -Name arguments, 
-            // ignore all arguments except for '*' since it is the most inclusive
-            // eg:  -Name ["TestModule, Test*, *"]  will become -Name ["*"]
-            if (Name != null && Name.Length > 1)
-            {
-                foreach (var pkgName in Name)
-                {
-                    if (pkgName.Trim().Equals("*"))
-                    {
-                        Name = new string[] { "*" };
-                        break;
-                    }
-                }
-            }
         }
 
         protected override void ProcessRecord()
         {
-            CancellationTokenSource source = new CancellationTokenSource();
-            CancellationToken cancellationToken = source.Token;
+            WriteVerbose("Entering GetInstalledPSResource");
 
-            WriteDebug("Entering GetInstalledPSResource");
+            var namesToSearch = Utils.ProcessNameWildcards(Name, out string[] errorMsgs, out bool _);
+            foreach (string error in errorMsgs)
+            {
+                WriteError(new ErrorRecord(
+                    new PSInvalidOperationException(error),
+                    "ErrorFilteringNamesForUnsupportedWildcards",
+                    ErrorCategory.InvalidArgument,
+                    this));
+            }
 
-            GetHelper getHelper = new GetHelper(cancellationToken, this);
-            foreach (PSResourceInfo pkg in getHelper.ProcessGetParams(Name, _versionRange, _pathsToSearch))
+            // this catches the case where Name wasn't passed in as null or empty,
+            // but after filtering out unsupported wildcard names in BeginProcessing() there are no elements left in Name
+            if (namesToSearch.Length == 0)
+            {
+                 return;
+            }
+
+            GetHelper getHelper = new GetHelper(this);
+            foreach (PSResourceInfo pkg in getHelper.FilterPkgPaths(namesToSearch, _versionRange, _pathsToSearch))
             {
                 WriteObject(pkg);
             }

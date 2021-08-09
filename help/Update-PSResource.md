@@ -1,46 +1,53 @@
 ---
 external help file: PowerShellGet.dll-Help.xml
 Module Name: PowerShellGet
-online version: <add>
+online version:
 schema: 2.0.0
 ---
 
 # Update-PSResource
 
 ## SYNOPSIS
-{{ Fill in the Synopsis }}
+Updates a package already installed on the user's machine.
 
 ## SYNTAX
 
 ### NameParameterSet (Default)
 ```
 Update-PSResource [-Name] <String[]> [-Version <String>] [-Prerelease] [-Repository <String[]>]
- [-Scope <String>] [-TrustRepository] [-Credential <PSCredential>] [-Quiet] [-AcceptLicense] [-NoClobber]
- [-WhatIf] [-Confirm] [<CommonParameters>]
-```
-
-### RequiredResourceFileParameterSet
-```
-Update-PSResource [-Scope <String>] [-TrustRepository] [-Quiet] [-AcceptLicense] [-WhatIf] [-Confirm]
- [<CommonParameters>]
+ [-Scope <Microsoft.PowerShell.PowerShellGet.UtilClasses.ScopeType>] [-TrustRepository] [-Credential <PSCredential>] [-Quiet] [-AcceptLicense] [-WhatIf] [-Confirm] [<CommonParameters>]
 ```
 
 ## DESCRIPTION
-{{ Fill in the Description }}
+The Update-PSResource cmdlet replaces the Update-Module and Update-Script cmdlets from V2.
+It updates an already installed package based on the `-Name` parameter argument.
+It does not return an object. Other parameters allow the package to be updated to be further filtered.
 
 ## EXAMPLES
 
 ### Example 1
 ```powershell
-PS C:\> {{ Add example code here }}
+PS C:\> Get-InstalledPSResource -Name "TestModule"
+        Name                                    Version                         Prerelease   Description
+        ----                                    -------                         ----------   -----------
+        TestModule                              1.2.0                                        test
+
+PS C:\> Update-PSResource -Name "TestModule"
+
+PS C:\> Get-InstalledPSResource -Name "TestModule"
+        Name                                    Version                         Prerelease   Description
+        ----                                    -------                         ----------   -----------
+        TestModule                              1.3.0                                        test
+        TestModule                              1.2.0                                        test
+
 ```
 
-{{ Add example description here }}
+In this example, the user already has the TestModule package installed and they update the package. Update-PSResource will install the latest version of the package without deleting the older version installed.
 
 ## PARAMETERS
 
 ### -AcceptLicense
-{{ Fill AcceptLicense Description }}
+For resources that require a license, AcceptLicense automatically accepts the license agreement during the update.
 
 ```yaml
 Type: System.Management.Automation.SwitchParameter
@@ -55,40 +62,10 @@ Accept wildcard characters: False
 ```
 
 ### -Credential
-{{ Fill Credential Description }}
+Specifies optional credentials to be used when accessing a private repository.
 
 ```yaml
 Type: System.Management.Automation.PSCredential
-Parameter Sets: NameParameterSet
-Aliases:
-
-Required: False
-Position: Named
-Default value: None
-Accept pipeline input: True (ByPropertyName)
-Accept wildcard characters: False
-```
-
-### -Name
-{{ Fill Name Description }}
-
-```yaml
-Type: System.String[]
-Parameter Sets: NameParameterSet
-Aliases:
-
-Required: True
-Position: 0
-Default value: None
-Accept pipeline input: True (ByPropertyName, ByValue)
-Accept wildcard characters: False
-```
-
-### -NoClobber
-{{ Fill NoClobber Description }}
-
-```yaml
-Type: System.Management.Automation.SwitchParameter
 Parameter Sets: NameParameterSet
 Aliases:
 
@@ -99,8 +76,23 @@ Accept pipeline input: False
 Accept wildcard characters: False
 ```
 
+### -Name
+Specifies name of a resource or resources to update.
+
+```yaml
+Type: System.String[]
+Parameter Sets: NameParameterSet
+Aliases:
+
+Required: True
+Position: 0
+Default value: "*"
+Accept pipeline input: True (ByPropertyName, ByValue)
+Accept wildcard characters: True
+```
+
 ### -Prerelease
-{{ Fill Prerelease Description }}
+When specified, allows updating to a prerelease version.
 
 ```yaml
 Type: System.Management.Automation.SwitchParameter
@@ -115,7 +107,7 @@ Accept wildcard characters: False
 ```
 
 ### -Quiet
-{{ Fill Quiet Description }}
+Supresses progress information.
 
 ```yaml
 Type: System.Management.Automation.SwitchParameter
@@ -130,7 +122,8 @@ Accept wildcard characters: False
 ```
 
 ### -Repository
-{{ Fill Repository Description }}
+Specifies one or more repository names to update packages from.
+If not specified, search for packages to update will include all currently registered repositories in order of highest priority.
 
 ```yaml
 Type: System.String[]
@@ -145,10 +138,10 @@ Accept wildcard characters: False
 ```
 
 ### -Scope
-{{ Fill Scope Description }}
+Specifies the scope of the resource to update.
 
 ```yaml
-Type: System.String
+Type: Microsoft.PowerShell.PowerShellGet.UtilClasses.ScopeType
 Parameter Sets: (All)
 Aliases:
 Accepted values: CurrentUser, AllUsers
@@ -161,7 +154,7 @@ Accept wildcard characters: False
 ```
 
 ### -TrustRepository
-{{ Fill TrustRepository Description }}
+Specifies optional credentials to be used when accessing a private repository.
 
 ```yaml
 Type: System.Management.Automation.SwitchParameter
@@ -176,7 +169,16 @@ Accept wildcard characters: False
 ```
 
 ### -Version
-{{ Fill Version Description }}
+Specifies the version of the resource to be updated to. The value can be an exact version or a version
+range using the NuGet versioning syntax.
+
+For more information about NuGet version ranges, see [Package versioning](/nuget/concepts/package-versioning#version-ranges)
+
+PowerShellGet supports all but the _minimum inclusive version_ listed in the NuGet version range
+documentation. So inputting "1.0.0.0" as the version doesn't yield versions 1.0.0.0 and higher
+(minimum inclusive range). Instead, the values is considered as the required version and yields 
+version 1.0.0.0 only (required version). To use the minimum inclusive range, provide `[1.0.0.0, ]` as 
+the version range.
 
 ```yaml
 Type: System.String
@@ -228,15 +230,10 @@ This cmdlet supports the common parameters: -Debug, -ErrorAction, -ErrorVariable
 
 ### System.String[]
 
-### System.Management.Automation.PSCredential
-
 ## OUTPUTS
-
-### System.Object
 
 ## NOTES
 
 ## RELATED LINKS
 
 [<add>](<add>)
-

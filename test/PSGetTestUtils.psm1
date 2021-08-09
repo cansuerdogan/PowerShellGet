@@ -1,20 +1,17 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-$psGetMod = Get-Module -Name PowerShellGet
-if ((! $psGetMod) -or (($psGetMod | Select-Object Version) -lt 3.0.0))
-{
-    Write-Verbose -Message "Importing PowerShellGet 3.0.0 for test" -Verbose
-    Import-Module -Name PowerShellGet -MinimumVersion 3.0.0 -Force
-}
-
 $script:DotnetCommandPath = @()
 $script:EnvironmentVariableTarget = @{ Process = 0; User = 1; Machine = 2 }
 $script:EnvPATHValueBackup = $null
 
 $script:PowerShellGet = 'PowerShellGet'
 $script:IsInbox = $PSHOME.EndsWith('\WindowsPowerShell\v1.0', [System.StringComparison]::OrdinalIgnoreCase)
-$script:IsWindows = (-not (Get-Variable -Name IsWindows -ErrorAction Ignore)) -or $IsWindows
+$script:IsWindows = $IsWindows
+if ($IsWindows -eq $null) {
+    $script:IsWindows = ($PSVersionTable.PSVersion.Major -eq 5)
+}
+
 $script:IsLinux = (Get-Variable -Name IsLinux -ErrorAction Ignore) -and $IsLinux
 $script:IsMacOS = (Get-Variable -Name IsMacOS -ErrorAction Ignore) -and $IsMacOS
 $script:IsCoreCLR = $PSVersionTable.ContainsKey('PSEdition') -and $PSVersionTable.PSEdition -eq 'Core'
@@ -24,6 +21,8 @@ $script:PSGalleryLocation = 'https://www.powershellgallery.com/api/v2'
 
 $script:PoshTestGalleryName = 'PoshTestGallery'
 $script:PostTestGalleryLocation = 'https://www.poshtestgallery.com/api/v2'
+
+$script:NuGetGalleryName = 'NuGetGallery'
 
 if($script:IsInbox)
 {
@@ -101,6 +100,10 @@ $script:moduleSourcesFilePath = Microsoft.PowerShell.Management\Join-Path -Path 
 $script:CurrentPSGetFormatVersion = "1.0"
 $script:PSGetFormatVersionPrefix = "PowerShellGetFormatVersion_"
 
+function Get-IsWindows {
+    return $script:IsWindows
+}
+
 function Get-AllUsersModulesPath {
     return $script:ProgramFilesModulesPath
 }
@@ -125,6 +128,10 @@ function Get-PSGetLocalAppDataPath {
     return $script:PSGetAppLocalPath
 }
 
+function Get-NuGetGalleryName
+{
+    return $script:NuGetGalleryName
+}
 function Get-PSGalleryName
 {
     return $script:PSGalleryName
@@ -166,6 +173,7 @@ function Get-RemoveTestDirs {
         }
     }
 }
+
 function Get-NewPSResourceRepositoryFile {
     # register our own repositories with desired priority
     $powerShellGetPath = Join-Path -Path ([Environment]::GetFolderPath([System.Environment+SpecialFolder]::LocalApplicationData)) -ChildPath "PowerShellGet"
@@ -197,13 +205,39 @@ function Get-RevertPSResourceRepositoryFile {
     }
 }
 
-function Get-TestDriveSetUp
-{
+function Register-LocalRepos {
     $repoURLAddress = Join-Path -Path $TestDrive -ChildPath "testdir"
     $null = New-Item $repoURLAddress -ItemType Directory -Force
+    $localRepoParams = @{
+        Name = "psgettestlocal"
+        URL = $repoURLAddress
+        Priority = 40
+        Trusted = $false
+    }
+    Register-PSResourceRepository @localRepoParams
 
-    Set-PSResourceRepository -Name "psgettestlocal" -URL $repoURLAddress
+    $repoURLAddress2 = Join-Path -Path $TestDrive -ChildPath "testdir2"
+    $null = New-Item $repoURLAddress2 -ItemType Directory -Force
+    $localRepoParams2 = @{
+        Name = "psgettestlocal2"
+        URL = $repoURLAddress2
+        Priority = 50
+        Trusted = $false
+    }
+    Register-PSResourceRepository @localRepoParams2
+    Write-Verbose("registered psgettestlocal, psgettestlocal2")
+}
 
+function Unregister-LocalRepos {
+    if(Get-PSResourceRepository -Name "psgettestlocal"){
+        Unregister-PSResourceRepository -Name "psgettestlocal"
+    }
+    if(Get-PSResourceRepository -Name "psgettestlocal2"){
+        Unregister-PSResourceRepository -Name "psgettestlocal2"
+    }
+}
+function Get-TestDriveSetUp
+{
     $testResourcesFolder = Join-Path $TestDrive -ChildPath "TestLocalDirectory"
 
     $script:testIndividualResourceFolder = Join-Path -Path $testResourcesFolder -ChildPath "PSGet_$(Get-Random)"
@@ -304,7 +338,10 @@ function Get-ModuleResourcePublishedToLocalRepoTestDrive
 {
     Param(
         [string]
-        $moduleName
+        $moduleName,
+
+        [string]
+        $repoName
     )
     Get-TestDriveSetUp
 
@@ -313,11 +350,34 @@ function Get-ModuleResourcePublishedToLocalRepoTestDrive
     $null = New-Item -Path $publishModuleBase -ItemType Directory -Force
 
     $version = "1.0"
-    New-ModuleManifest -Path (Join-Path -Path $publishModuleBase -ChildPath "$publishModuleName.psd1") -ModuleVersion $version -Description "$publishModuleName module" -NestedModules "$publishModuleName.psm1"
+    New-ModuleManifest -Path (Join-Path -Path $publishModuleBase -ChildPath "$publishModuleName.psd1") -ModuleVersion $version -Description "$publishModuleName module"
 
-    Publish-PSResource -Path $publishModuleBase -Repository psgettestlocal
+    Publish-PSResource -Path $publishModuleBase -Repository $repoName
 }
 
+function Register-LocalRepos {
+    $repoURLAddress = Join-Path -Path $TestDrive -ChildPath "testdir"
+    $null = New-Item $repoURLAddress -ItemType Directory -Force
+    $localRepoParams = @{
+        Name = "psgettestlocal"
+        URL = $repoURLAddress
+        Priority = 40
+        Trusted = $false
+    }
+
+    Register-PSResourceRepository @localRepoParams
+
+    $repoURLAddress2 = Join-Path -Path $TestDrive -ChildPath "testdir2"
+    $null = New-Item $repoURLAddress2 -ItemType Directory -Force
+    $localRepoParams2 = @{
+        Name = "psgettestlocal2"
+        URL = $repoURLAddress2
+        Priority = 50
+        Trusted = $false
+    }
+
+    Register-PSResourceRepository @localRepoParams2
+}
 function RemoveItem
 {
     Param(
@@ -450,6 +510,7 @@ $($ReleaseNotes -join "`r`n")
 Checks that provided PSGetInfo object contents match the expected data
 from the test information file: PSGetModuleInfo.xml
 #>
+
 function CheckForExpectedPSGetInfo
 {
     param ($psGetInfo)
@@ -469,9 +530,9 @@ function CheckForExpectedPSGetInfo
     $psGetInfo.AdditionalMetadata['tags'] | Should -BeLike 'PSModule PSEdition_Core PSCmdlet_Register-SecretVault*'
     $psGetInfo.AdditionalMetadata['developmentDependency'] | Should -BeExactly 'False'
     $psGetInfo.AdditionalMetadata['updated'] | Should -BeExactly '2021-03-25T18:08:10Z'
-    $psGetInfo.AdditionalMetadata['NormalizedVersion'] | Should -BeExactly '1.0.0'
+    $psGetInfo.AdditionalMetadata['NormalizedVersion'] | Should -BeExactly '1.1.0-preview2'
     $psGetInfo.AdditionalMetadata['Authors'] | Should -BeExactly 'Microsoft Corporation'
-    $psGetInfo.AdditionalMetadata['IsPrerelease'] | Should -BeExactly 'false'
+    $psGetInfo.AdditionalMetadata['IsPrerelease'] | Should -Be $True
     $psGetInfo.AdditionalMetadata['ItemType'] | Should -BeExactly 'Module'
     $psGetInfo.AdditionalMetadata['FileList'] | Should -BeLike 'Microsoft.PowerShell.SecretManagement.nuspec|Microsoft.PowerShell.SecretManagement.dll*'
     $psGetInfo.AdditionalMetadata['GUID'] | Should -BeExactly 'a5c858f6-4a8e-41f1-b1ee-0ff8f6ad69d3'
@@ -484,6 +545,8 @@ function CheckForExpectedPSGetInfo
     $psGetInfo.Dependencies | Should -HaveCount 0
     $psGetInfo.Description | Should -BeLike 'This module provides a convenient way for a user to store*'
     $psGetInfo.IconUri | Should -BeNullOrEmpty
+    $psGetInfo.IsPrerelease | Should -Be $True
+    $psGetInfo.PrereleaseLabel | Should -Be "preview2"
     $psGetInfo.Includes.Cmdlet | Should -HaveCount 10
     $psGetInfo.Includes.Cmdlet[0] | Should -BeExactly 'Register-SecretVault'
     $psGetInfo.InstalledDate.Year | Should -BeExactly 2021
@@ -500,5 +563,5 @@ function CheckForExpectedPSGetInfo
     $psGetInfo.Tags | Should -BeExactly @('PSModule', 'PSEdition_Core')
     $psGetInfo.Type | Should -BeExactly 'Module'
     $psGetInfo.UpdatedDate.Year | Should -BeExactly 1
-    $psGetInfo.Version.ToString() | Should -BeExactly '1.0.0'
+    $psGetInfo.Version | Should -Be "1.1.0"
 }

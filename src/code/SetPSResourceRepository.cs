@@ -28,6 +28,8 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
         private const string RepositoriesParameterSet = "RepositoriesParameterSet";
         private const int DefaultPriority = -1;
 
+        private Uri _url;
+
         private static readonly string VaultNameAttribute = "VaultName";
         private static readonly string SecretAttribute = "Secret";
 
@@ -49,25 +51,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
         /// </sumamry>
         [Parameter(ParameterSetName = NameParameterSet)]
         [ValidateNotNullOrEmpty]
-        public Uri URL
-        {
-            get
-            { return _url; }
-
-            set
-            {
-                if (!Uri.TryCreate(value, string.Empty, out Uri url))
-                {
-                    var message = string.Format(CultureInfo.InvariantCulture, "The URL provided is not a valid url: {0}", value);
-                    var ex = new ArgumentException(message);
-                    var urlErrorRecord = new ErrorRecord(ex, "InvalidUrl", ErrorCategory.InvalidArgument, null);
-                    ThrowTerminatingError(urlErrorRecord);
-                }
-
-                _url = url;
-            }
-        }
-        private Uri _url;
+        public string URL { get; set; }
 
         /// <summary>
         /// Specifies a hashtable of repositories and is used to register multiple repositories at once.
@@ -123,23 +107,20 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
         #region Methods
         protected override void BeginProcessing()
         {
-            try
-            {
-                WriteDebug("Calling API to check repository store exists in non-corrupted state");
-                RepositorySettings.CheckRepositoryStore();
-            }
-            catch (PSInvalidOperationException e)
-            {
-                ThrowTerminatingError(new ErrorRecord(
-                    new PSInvalidOperationException(e.Message),
-                    "RepositoryStoreException",
-                    ErrorCategory.ReadError,
-                    this));
-            }
+            RepositorySettings.CheckRepositoryStore();
         }
 
         protected override void ProcessRecord()
         {
+            if (MyInvocation.BoundParameters.ContainsKey(nameof(URL)))
+            {
+                bool isUrlValid = Utils.TryCreateValidUrl(URL, this, out _url, out ErrorRecord errorRecord);
+                if (!isUrlValid)
+                {
+                    ThrowTerminatingError(errorRecord);
+                }
+            }
+
             List<PSRepositoryInfo> items = new List<PSRepositoryInfo>();
 
             switch(ParameterSetName)
@@ -147,7 +128,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
                 case NameParameterSet:
                     try
                     {
-                        items.Add(UpdateRepositoryStoreHelper(Name, URL, Priority, Trusted, Authentication));
+                        items.Add(UpdateRepositoryStoreHelper(Name, _url, Priority, Trusted, Authentication));
                     }
                     catch (Exception e)
                     {
@@ -234,7 +215,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
                 throw new ArgumentException("Either URL, Priority, Trusted or Authentication parameters must be requested to be set");
             }
 
-            WriteDebug("All required values to set repository provided, calling internal Update() API now");
+            WriteVerbose("All required values to set repository provided, calling internal Update() API now");
             if (!ShouldProcess(repoName, "Set repository's value(s) in repository store"))
             {
                 return null;
@@ -268,16 +249,29 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
 
         private PSRepositoryInfo RepoValidationHelper(Hashtable repo)
         {
-            WriteDebug(String.Format("Parsing through repository: {0}", repo["Name"]));
+            WriteVerbose(String.Format("Parsing through repository: {0}", repo["Name"]));
+
             Uri repoURL = null;
-            if (repo.ContainsKey("Url")  && !Uri.TryCreate(repo["URL"].ToString(), UriKind.Absolute, out repoURL))
+            if (repo.ContainsKey("Url"))
             {
-                WriteError(new ErrorRecord(
-                    new PSInvalidOperationException("Invalid Url, unable to parse and create Uri"),
-                    "InvalidUrl",
-                    ErrorCategory.InvalidArgument,
-                    this));
-                return null;
+                if (String.IsNullOrEmpty(repo["Url"].ToString()))
+                {
+                    WriteError(new ErrorRecord(
+                            new PSInvalidOperationException("Repository url cannot be null if provided"),
+                            "NullURLForRepositoriesParameterSetUpdate",
+                            ErrorCategory.InvalidArgument,
+                            this));
+                    return null;
+                }
+
+                if (!Utils.TryCreateValidUrl(urlString: repo["Url"].ToString(),
+                    cmdletPassedIn: this,
+                    urlResult: out repoURL,
+                    errorRecord: out ErrorRecord errorRecord))
+                {
+                    WriteError(errorRecord);
+                    return null;
+                }
             }
 
             bool repoTrusted = false;
