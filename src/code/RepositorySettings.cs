@@ -62,7 +62,7 @@ namespace Microsoft.PowerShell.PowerShellGet.UtilClasses
 
                 // Add PSGallery to the newly created store
                 Uri psGalleryUri = new Uri(PSGalleryRepoURL);
-                Add(PSGalleryRepoName, psGalleryUri, defaultPriority, defaultTrusted);
+                Add(PSGalleryRepoName, psGalleryUri, defaultPriority, defaultTrusted, null);
             }
 
             // Open file (which should exist now), if cannot/is corrupted then throw error
