@@ -1,11 +1,8 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Globalization;
-using System.Linq;
 using System.Management.Automation;
 using System.Management.Automation.Runspaces;
-using System.Security;
-using System.Threading;
 
 namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
 {
@@ -14,6 +11,9 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
     /// </summary>
     internal class AuthenticationHelper
     {
+        internal static readonly string VaultNameAttribute = "VaultName";
+        internal static readonly string SecretAttribute = "Secret";
+
         private readonly PSCmdlet _cmdletPassedIn;
 
         private static readonly string SecretManagementModuleName = "Microsoft.PowerShell.SecretManagement";

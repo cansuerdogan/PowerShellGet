@@ -47,9 +47,6 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
         private const int SearchAsyncMaxReturned = 5990;
         private const int GalleryMax = 12000;
 
-        private static readonly string VaultNameAttribute = "VaultName";
-        private static readonly string SecretAttribute = "Secret";
-
         public FindHelper(CancellationToken cancellationToken, PSCmdlet cmdletPassedIn)
         {
             _cancellationToken = cancellationToken;
@@ -180,7 +177,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
             // HTTP, HTTPS, FTP Uri schemes (only other Uri schemes allowed by RepositorySettings.Read() API)
             PackageSource source = new PackageSource(repositoryUrl.ToString());
 
-            // Explicitly passed in Credential takes precedence
+            // Explicitly passed in Credential takes precedence over repository Authentication
             if (_credential != null)
             {
                 string password = new NetworkCredential(string.Empty, _credential.Password).Password;
@@ -191,10 +188,10 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
             {
                 var authHelper = new AuthenticationHelper(_cmdletPassedIn);
                 string password = authHelper.GetRepositoryAuthenticationPassword(
-                    repositoryAuthentication[VaultNameAttribute].ToString(),
-                    repositoryAuthentication[SecretAttribute].ToString());
+                    repositoryAuthentication[AuthenticationHelper.VaultNameAttribute].ToString(),
+                    repositoryAuthentication[AuthenticationHelper.SecretAttribute].ToString());
 
-                source.Credentials = PackageSourceCredential.FromUserInput(repositoryUrl.ToString(), repositoryAuthentication[SecretAttribute].ToString(), password, true, null);
+                source.Credentials = PackageSourceCredential.FromUserInput(repositoryUrl.ToString(), repositoryAuthentication[AuthenticationHelper.SecretAttribute].ToString(), password, true, null);
                 _cmdletPassedIn.WriteVerbose("credential successfully read from vault and set for repository: " + repositoryName);
             }
 
