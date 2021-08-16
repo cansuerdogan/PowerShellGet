@@ -86,7 +86,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
         public int Priority { get; set; } = DefaultPriority;
 
         /// <summary>
-        /// Specifies a hashtable of Authentication information such as vault and secret names.
+        /// Specifies a hashtable of vault and secret names as Authentication information for the repository.
         /// </summary>
         [Parameter(ParameterSetName = NameParameterSet)]
         [ValidateNotNullOrEmpty]
