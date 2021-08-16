@@ -188,6 +188,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
             {
                 var authHelper = new AuthenticationHelper(_cmdletPassedIn);
                 string password = authHelper.GetRepositoryAuthenticationPassword(
+                    repositoryName,
                     repositoryAuthentication[AuthenticationHelper.VaultNameAttribute].ToString(),
                     repositoryAuthentication[AuthenticationHelper.SecretAttribute].ToString());
 

@@ -23,7 +23,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
             _cmdletPassedIn = cmdletPassedIn;
         }
 
-        public string GetRepositoryAuthenticationPassword(string vaultName, string secretName)
+        public string GetRepositoryAuthenticationPassword(string repositoryName, string vaultName, string secretName)
         {
             var results = PowerShellInvoker.InvokeScriptWithHost<string>(
                 cmdlet: _cmdletPassedIn,
@@ -48,7 +48,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
                 _cmdletPassedIn.ThrowTerminatingError(
                     new ErrorRecord(
                         new PSInvalidOperationException(
-                            message: string.Format(CultureInfo.InvariantCulture, "Unable to read secret {0} from vault {1} for PSResourceRepository authentication", secretName, vaultName),
+                            message: string.Format(CultureInfo.InvariantCulture, "Unable to read secret {0} from vault {1} for authenticating to PSResourceRepository {2}", secretName, vaultName, repositoryName),
                             innerException: terminatingError),
                         "RepositoryAuthenticationCannotGetSecretFromVault",
                         ErrorCategory.InvalidOperation,

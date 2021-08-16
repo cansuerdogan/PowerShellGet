@@ -306,7 +306,7 @@ namespace Microsoft.PowerShell.PowerShellGet.UtilClasses
                     }
 
                     Hashtable thisAuthentication = null;
-                    string authErrorMessage = $"Invalid Authentication information, {VaultNameAttribute} and {SecretAttribute} should both be present and non-empty";
+                    string authErrorMessage = $"Repository {repo.Attribute("Name")} has invalid Authentication information. {VaultNameAttribute} and {SecretAttribute} should both be present and non-empty";
                     // both keys present
                     if (repo.Attribute(VaultNameAttribute) != null && repo.Attribute(SecretAttribute) != null) {
                         // both values non-empty
@@ -359,7 +359,7 @@ namespace Microsoft.PowerShell.PowerShellGet.UtilClasses
                         }
 
                         Hashtable thisAuthentication = null;
-                        string authErrorMessage = $"Invalid Authentication information, {VaultNameAttribute} and {SecretAttribute} should both be present and non-empty";
+                        string authErrorMessage = $"Repository {node.Attribute("Name")} has invalid Authentication information. {VaultNameAttribute} and {SecretAttribute} should both be present and non-empty";
                         // both keys present
                         if (node.Attribute(VaultNameAttribute) != null && node.Attribute(SecretAttribute) != null) {
                             // both values non-empty
