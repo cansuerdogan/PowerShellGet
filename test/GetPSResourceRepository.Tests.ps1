@@ -84,13 +84,15 @@ Describe "Test Get-PSResourceRepository" {
     }
 
     It "given invalid and valid Authentication information, get valid ones and write error for non valid ones" {
-        $res = Get-PSResourceRepository -Name "psgettestlocal*" -ErrorVariable err -ErrorAction SilentlyContinue
+        Get-NewPSResourceRepositoryFileWithAuthentication
+
+        $res = Get-PSResourceRepository -Name "localtestrepo*" -ErrorVariable err -ErrorAction SilentlyContinue
         $err.Count | Should -Not -Be 0
         $err[0].FullyQualifiedErrorId | Should -BeExactly "ErrorGettingSpecifiedRepo,Microsoft.PowerShell.PowerShellGet.Cmdlets.GetPSResourceRepository"
 
         # should have successfully got the other valid/registered repositories with no error
         foreach ($entry in $res) {
-            $entry.Name | Should -BeIn "psgettestlocal","psgettestlocal2"
+            $entry.Name | Should -BeIn "localtestrepo1","localtestrepo2"
         }
     }
 
@@ -105,9 +107,7 @@ Describe "Test Get-PSResourceRepository" {
     }
 
     It "find all repositories if no Name provided" {
-        # there are 2 invalid repositories
-        $res = Get-PSResourceRepository -ErrorVariable err -ErrorAction SilentlyContinue
+        $res = Get-PSResourceRepository
         $res.Count | Should -BeGreaterThan 0
-        $err.Count | Should -Not -Be 0
     }
 }

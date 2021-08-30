@@ -36,9 +36,6 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
         private const string RepositoriesParameterSet = "RepositoriesParameterSet";
         private Uri _url;
 
-        private static readonly string VaultNameAttribute = "VaultName";
-        private static readonly string SecretAttribute = "Secret";
-
         #endregion
 
         #region Parameters
@@ -89,7 +86,7 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
         public int Priority { get; set; } = defaultPriority;
 
         /// <summary>
-        /// Specifies a hashtable of Authentication information such as vault and secret names.
+        /// Specifies a hashtable of vault and secret names as Authentication information for the repository.
         /// </summary>
         [Parameter(ParameterSetName = NameParameterSet)]
         [ValidateNotNullOrEmpty]
@@ -221,10 +218,10 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
 
             if (repoAuthentication != null)
             {
-                if (!repoAuthentication.ContainsKey(VaultNameAttribute) || string.IsNullOrEmpty(repoAuthentication[VaultNameAttribute].ToString())
-                    || !repoAuthentication.ContainsKey(SecretAttribute) || string.IsNullOrEmpty(repoAuthentication[SecretAttribute].ToString()))
+                if (!repoAuthentication.ContainsKey(AuthenticationHelper.VaultNameAttribute) || string.IsNullOrEmpty(repoAuthentication[AuthenticationHelper.VaultNameAttribute].ToString())
+                    || !repoAuthentication.ContainsKey(AuthenticationHelper.SecretAttribute) || string.IsNullOrEmpty(repoAuthentication[AuthenticationHelper.SecretAttribute].ToString()))
                 {
-                    throw new ArgumentException($"Invalid Authentication, must include {VaultNameAttribute} and {SecretAttribute} key/(non-empty) value pairs");
+                    throw new ArgumentException($"Invalid Authentication, must include {AuthenticationHelper.VaultNameAttribute} and {AuthenticationHelper.SecretAttribute} key/(non-empty) value pairs");
                 }
             }
 
@@ -345,11 +342,11 @@ namespace Microsoft.PowerShell.PowerShellGet.Cmdlets
             Hashtable repoAuthentication = repo["Authentication"] as Hashtable;
             if (repoAuthentication != null)
             {
-                if (!repoAuthentication.ContainsKey(VaultNameAttribute) || string.IsNullOrEmpty(repoAuthentication[VaultNameAttribute].ToString())
-                    || !repoAuthentication.ContainsKey(SecretAttribute) || string.IsNullOrEmpty(repoAuthentication[SecretAttribute].ToString()))
+                if (!repoAuthentication.ContainsKey(AuthenticationHelper.VaultNameAttribute) || string.IsNullOrEmpty(repoAuthentication[AuthenticationHelper.VaultNameAttribute].ToString())
+                    || !repoAuthentication.ContainsKey(AuthenticationHelper.SecretAttribute) || string.IsNullOrEmpty(repoAuthentication[AuthenticationHelper.SecretAttribute].ToString()))
                 {
                     WriteError(new ErrorRecord(
-                        new PSInvalidOperationException($"Invalid Authentication, must include {VaultNameAttribute} and {SecretAttribute} key/(non-empty) value pairs"),
+                        new PSInvalidOperationException($"Invalid Authentication, must include {AuthenticationHelper.VaultNameAttribute} and {AuthenticationHelper.SecretAttribute} key/(non-empty) value pairs"),
                         "InvalidAuthentication",
                         ErrorCategory.InvalidArgument,
                         this));
